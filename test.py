@@ -36,31 +36,25 @@ def solve_shortest_path(edge_list: List[Tuple[str, str, float]], source: str, de
     for k in nodes:
         # 边界条件 Delta
         delta_k = 1 if k == source else (-1 if k == destination else 0)
-        
         # 找出以节点 k 为起点和终点的边索引
         E_out = [i for i, (u, _, _) in enumerate(edge_list) if u == k]
         E_in = [i for i, (_, v, _) in enumerate(edge_list) if v == k]
-        
         qubo_offset += A * (delta_k ** 2)
-        
         # 对角线项 (线性项 x_e^2 = x_e)
         for e in E_out:
             Q[e, e] += A - 2 * A * delta_k
         for f in E_in:
             Q[f, f] += A + 2 * A * delta_k
-            
         # 交叉项: 出边与出边 (同向耦合)
         for i in range(len(E_out)):
             for j in range(i + 1, len(E_out)):
                 e1, e2 = E_out[i], E_out[j]
                 Q[min(e1, e2), max(e1, e2)] += 2 * A
-                
         # 交叉项: 入边与入边 (同向耦合)
         for i in range(len(E_in)):
             for j in range(i + 1, len(E_in)):
                 f1, f2 = E_in[i], E_in[j]
                 Q[min(f1, f2), max(f1, f2)] += 2 * A
-                
         # 交叉项: 出边与入边 (异向耦合)
         for e in E_out:
             for f in E_in:
@@ -203,7 +197,7 @@ def test_pipeline_complex():
     assert abs(res2["total_distance"] - 4.0) < 1e-5, f"测试 2 失败：期望距离 4.0，实际得到 {res2['total_distance']}"
     print("-> 测试用例 2 通过！")
 
-def validate_against_networkx(num_trials: int = 10, max_nodes: int = 6, seed: int = 42):
+def validate_against_networkx(num_trials: int = 10, max_nodes: int = 7, seed: int = 42):
     """
     用 networkx 的 Dijkstra 算法作为 ground truth，与 Ising 求解器在多个随机图上做对比。
     只对比最短距离（多条最短路径可能并存，路径本身不一定唯一）。
@@ -217,9 +211,12 @@ def validate_against_networkx(num_trials: int = 10, max_nodes: int = 6, seed: in
     num_run = 0
     for t in range(num_trials):
         # 随机生成有向图：n 个节点，边按概率生成
-        n = rng.randint(4, max_nodes)
+        n = rng.randint(6, max_nodes)
         # S 固定在最前、D 固定在最后，中间节点随机，保证 DAG 中 S->D 总可能连通
-        middle = [chr(ord('A') + i) for i in range(n - 2)]
+        # 跳过 'S' 和 'D'，避免中间节点名与源/汇节点冲突导致重边
+        node_pool = [chr(ord('A') + i) for i in range(26)
+                     if chr(ord('A') + i) not in ('S', 'D')]
+        middle = node_pool[:n - 2]
         rng.shuffle(middle)
         node_names = ['S'] + middle + ['D']
         source, dest = 'S', 'D'
@@ -382,7 +379,7 @@ def visualize_comparison(edge_list: List[Tuple[str, str, float]],
 if __name__ == "__main__":
     test_pipeline()
     test_pipeline_complex()
-    validate_against_networkx(num_trials=10, max_nodes=6, seed=42)
+    validate_against_networkx(num_trials=10, seed=42)
 
     # 可视化对比（使用复杂测试图）
     print("\n===== 生成可视化对比图 =====")
